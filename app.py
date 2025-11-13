@@ -25,13 +25,15 @@ def load_resources():
         import tensorflow as tf
         from tensorflow import keras
         
-        # Определяем кастомный слой правильно
+        # Определяем кастомный слой правильно, учитывая ошибку
         class NotEqual(keras.layers.Layer):
             def __init__(self, **kwargs):
                 super(NotEqual, self).__init__(**kwargs)
             
             def call(self, inputs):
-                return tf.not_equal(inputs, 0)
+                # Используем tf.not_equal с правильными аргументами
+                # Передаем 0 как именованный аргумент в контексте вызова
+                return tf.not_equal(inputs, tf.constant(0))
             
             def get_config(self):
                 config = super(NotEqual, self).get_config()
@@ -42,7 +44,7 @@ def load_resources():
             model_path, 
             custom_objects={'NotEqual': NotEqual},
             compile=False,
-            safe_mode=False  # Это позволяет загрузить модель с кастомными слоями
+            safe_mode=False
         )
     except Exception as e:
         st.error(f"Failed to load model with custom objects: {str(e)}")
