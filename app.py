@@ -3,50 +3,61 @@ import numpy as np
 import pickle
 import requests
 import os
+import tempfile
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-def download_file_from_google_drive(file_id, destination):
-    """Download file from Google Drive using the direct download method"""
-    def get_confirm_token(response):
-        for key, value in response.cookies.items():
-            if key.startswith('download_warning'):
-                return value
-        return None
-
-    URL = "https://docs.google.com/uc?export=download"
+def download_model_directly():
+    """Alternative method to download model"""
+    # Use your Google Drive file ID
+    file_id = "1A0dE-UXP9M4bPY795Z6fAdJ0wyp8M9nW"
     
-    with requests.Session() as session:
-        response = session.get(URL, params={'id': file_id}, stream=True)
-        token = get_confirm_token(response)
-        
-        if token:
-            params = {'id': file_id, 'confirm': token}
-            response = session.get(URL, params=params, stream=True)
-        
-        with open(destination, "wb") as f:
-            for chunk in response.iter_content(32768):
-                if chunk:
-                    f.write(chunk)
+    # Alternative download URL format
+    url = f"https://drive.google.com/uc?export=download&confirm=1&id={file_id}"
+    
+    response = requests.get(url)
+    
+    # Save directly to file
+    with open('emotion_classification_model.h5', 'wb') as f:
+        f.write(response.content)
 
 @st.cache_resource
 def load_resources():
-    model_file_id = "1A0dE-UXP9M4bPY795Z6fAdJ0wyp8M9nW"  # Your file ID
+    model_path = 'emotion_classification_model.h5'
     
-    if not os.path.exists('emotion_classification_model.h5'):
+    # Check if model exists, if not download it
+    if not os.path.exists(model_path):
         st.info("Downloading model...")
-        download_file_from_google_drive(model_file_id, 'emotion_classification_model.h5')
+        download_model_directly()
         st.success("Model downloaded successfully!")
     
-    model = load_model('emotion_classification_model.h5')
+    # Verify file exists and is not empty
+    if not os.path.exists(model_path) or os.path.getsize(model_path) == 0:
+        st.error("Model file is missing or empty!")
+        st.stop()
+    
+    # Try to load the model with error handling
+    try:
+        model = load_model(model_path)
+    except Exception as e:
+        st.error(f"Failed to load model: {str(e)}")
+        st.stop()
+    
+    # Load preprocessing objects
     with open('tokenizer.pickle', 'rb') as handle:
         tokenizer = pickle.load(handle)
     with open('label_encoder.pickle', 'rb') as handle:
         label_encoder = pickle.load(handle)
+        
     return model, tokenizer, label_encoder
 
-# Load resources
-model, tokenizer, label_encoder = load_resources()
+# Try to load resources with error handling
+try:
+    model, tokenizer, label_encoder = load_resources()
+    st.success("✅ Model loaded successfully!")
+except Exception as e:
+    st.error(f"❌ Error loading model: {str(e)}")
+    st.stop()
 
 # Rest of your app code...
 st.title("🧠 Emotion Classification System")
