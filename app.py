@@ -1,13 +1,26 @@
 import streamlit as st
 import numpy as np
 import pickle
-import gdown
 import os
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
+# Function to install gdown if needed
+def install_gdown():
+    try:
+        import gdown
+        return gdown
+    except ImportError:
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
+        import gdown
+        return gdown
+
 @st.cache_resource
 def load_resources():
+    gdown = install_gdown()  # Install gdown first
+    
     # Google Drive file ID for your model
     model_file_id = "1B-aVgkLReK0hBz4XMFL118IDsB2_BXgy"  # Extracted from your link
     
@@ -23,13 +36,6 @@ def load_resources():
     with open('label_encoder.pickle', 'rb') as handle:
         label_encoder = pickle.load(handle)
     return model, tokenizer, label_encoder
-
-# Install gdown in the app
-try:
-    import gdown
-except ImportError:
-    import subprocess
-    subprocess.run(['pip', 'install', 'gdown'])
 
 model, tokenizer, label_encoder = load_resources()
 
