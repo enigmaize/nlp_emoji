@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import pickle
 import os
-from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 @st.cache_resource
@@ -18,18 +17,23 @@ def load_resources():
     file_size = os.path.getsize(model_path)
     st.info(f"Model size: {file_size / (1024*1024):.2f} MB")
     
-    # Загружаем модель с обработкой совместимости
+    # Загружаем модель с кастомными объектами
     try:
-        model = load_model(model_path, compile=False)  # Отключаем компиляцию для совместимости
+        from tensorflow import keras
+        import tensorflow as tf
+        
+        # Регистрируем кастомный слой 'NotEqual' если он есть
+        class NotEqual(keras.layers.Layer):
+            def call(self, inputs):
+                # Простая реализация для inference
+                return tf.not_equal(inputs, 0)
+        
+        # Загружаем с кастомным объектом
+        with keras.utils.custom_object_scope({'NotEqual': NotEqual}):
+            model = keras.models.load_model(model_path, compile=False)
     except Exception as e:
-        st.error(f"Failed to load model: {str(e)}")
-        # Попробуем альтернативный способ
-        try:
-            import tensorflow as tf
-            model = tf.keras.models.load_model(model_path, compile=False)
-        except Exception as e2:
-            st.error(f"Alternative loading also failed: {str(e2)}")
-            st.stop()
+        st.error(f"Failed to load model with custom objects: {str(e)}")
+        st.stop()
     
     # Загружаем предобработку
     with open('tokenizer.pickle', 'rb') as handle:
