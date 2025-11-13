@@ -6,26 +6,22 @@ import os
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-def download_model_from_google_drive(file_id, destination):
-    """Download model from Google Drive - handles large files correctly"""
-    # URL для больших файлов из Google Drive
+def download_large_file_from_gdrive(file_id):
+    """Download large file from Google Drive using cookies method"""
     url = f"https://drive.google.com/uc?id={file_id}"
     
     session = requests.Session()
     response = session.get(url, stream=True)
     
-    # Проверяем, не получили ли мы HTML-страницу вместо файла
-    if 'text/html' in response.headers.get('content-type', ''):
-        # Это означает, что файл большой и требует подтверждения
-        # Попробуем получить файл через прямую ссылку
-        confirm_url = f"https://drive.google.com/uc?export=download&confirm=1&id={file_id}"
-        response = session.get(confirm_url, stream=True)
+    # Проверяем, есть ли предупреждение о скачивании
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            # Нужно подтвердить скачивание
+            confirm_url = f"https://drive.google.com/uc?export=download&confirm={value}&id={file_id}"
+            response = session.get(confirm_url, stream=True)
+            break
     
-    # Сохраняем файл
-    with open(destination, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
+    return response
 
 @st.cache_resource
 def load_resources():
@@ -35,15 +31,24 @@ def load_resources():
     # Скачиваем модель если не существует
     if not os.path.exists(model_path):
         st.info("Downloading model...")
-        download_model_from_google_drive(model_file_id, model_path)
+        
+        response = download_large_file_from_gdrive(model_file_id)
+        
+        # Сохраняем файл
+        with open(model_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        
         st.success("Model downloaded successfully!")
     
-    # Проверяем размер файла (должен быть больше 10MB для вашей модели)
+    # Проверяем размер файла
     file_size = os.path.getsize(model_path)
     st.info(f"Downloaded model size: {file_size / (1024*1024):.2f} MB")
     
     if file_size < 10 * 1024 * 1024:  # Меньше 10MB
         st.error(f"Downloaded file is too small ({file_size} bytes) - likely not the actual model file")
+        st.error("This might be due to Google Drive's download restrictions.")
         st.stop()
     
     # Загружаем модель
@@ -51,7 +56,6 @@ def load_resources():
         model = load_model(model_path)
     except Exception as e:
         st.error(f"Failed to load model: {str(e)}")
-        st.error("The downloaded file might be corrupted or not a valid model file.")
         st.stop()
     
     # Загружаем предобработку
