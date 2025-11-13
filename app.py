@@ -1,5 +1,5 @@
-
-import streamlit as st
+# Create updated app.py with compatible imports
+app_code = '''import streamlit as st
 import numpy as np
 import pickle
 from tensorflow.keras.models import load_model
@@ -41,7 +41,7 @@ if st.button("Classify Emotion"):
             padded = pad_sequences(sequence, maxlen=512, padding='post', truncating='post')
             
             # Make prediction
-            prediction = model.predict(padded)
+            prediction = model.predict(padded, verbose=0)
             predicted_class_idx = np.argmax(prediction, axis=1)[0]
             predicted_emotion = label_encoder.classes_[predicted_class_idx]
             confidence = prediction[0][predicted_class_idx]
@@ -94,3 +94,9 @@ st.sidebar.write("""
 4. Attention mechanism identifies key emotional phrases
 5. Output shows the predicted emotion
 """)
+'''
+
+with open('app.py', 'w') as f:
+    f.write(app_code)
+
+print("app.py updated with compatible TensorFlow version")
