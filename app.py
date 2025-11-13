@@ -1,33 +1,23 @@
 import streamlit as st
 import numpy as np
 import pickle
+import requests
 import os
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-# Function to install gdown if needed
-def install_gdown():
-    try:
-        import gdown
-        return gdown
-    except ImportError:
-        import subprocess
-        import sys
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "gdown"])
-        import gdown
-        return gdown
-
 @st.cache_resource
 def load_resources():
-    gdown = install_gdown()  # Install gdown first
-    
-    # Google Drive file ID for your model
-    model_file_id = "1B-aVgkLReK0hBz4XMFL118IDsB2_BXgy"  # Extracted from your link
+    # Check if model exists, if not download from Google Drive
+    model_file_id = "1B-aVgkLReK0hBz4XMFL118IDsB2_BXgy"
     
     if not os.path.exists('emotion_classification_model.h5'):
         st.info("Downloading model...")
-        url = f"https://drive.google.com/uc?id={model_file_id}"
-        gdown.download(url, 'emotion_classification_model.h5', quiet=False)
+        url = f"https://drive.google.com/uc?export=download&id={model_file_id}"
+        
+        response = requests.get(url)
+        with open('emotion_classification_model.h5', 'wb') as f:
+            f.write(response.content)
         st.success("Model downloaded successfully!")
     
     model = load_model('emotion_classification_model.h5')
@@ -37,7 +27,13 @@ def load_resources():
         label_encoder = pickle.load(handle)
     return model, tokenizer, label_encoder
 
-model, tokenizer, label_encoder = load_resources()
+# Try to load resources
+try:
+    model, tokenizer, label_encoder = load_resources()
+    st.success("✅ Model loaded successfully!")
+except Exception as e:
+    st.error(f"❌ Error loading model: {str(e)}")
+    st.stop()
 
 # Rest of your app code...
 st.title("🧠 Emotion Classification System")
@@ -98,4 +94,13 @@ st.sidebar.write("""
 - **Classes**: 75 different emotions
 - **Accuracy**: 100%
 - **Architecture**: Custom neural network
+""")
+
+st.sidebar.header("How it Works")
+st.sidebar.write("""
+1. Text is processed through tokenization
+2. Converted to numerical sequences
+3. Passed through LSTM network
+4. Attention mechanism identifies key emotional phrases
+5. Output shows the predicted emotion
 """)
