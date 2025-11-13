@@ -31,7 +31,7 @@ def download_file_from_google_drive(file_id, destination):
 
 @st.cache_resource
 def load_resources():
-    model_file_id = "1B-aVgkLReK0hBz4XMFL118IDsB2_BXgy"  # Your file ID
+    model_file_id = "1A0dE-UXP9M4bPY795Z6fAdJ0wyp8M9nW"  # Your file ID
     
     if not os.path.exists('emotion_classification_model.h5'):
         st.info("Downloading model...")
