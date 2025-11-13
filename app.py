@@ -10,14 +10,17 @@ def load_resources():
     
     # Проверяем, существует ли файл
     if not os.path.exists(model_path):
-        st.error(f"Model file {model_path} not found in repository!")
+        st.error(f"❌ Model file {model_path} not found in repository!")
+        st.error("Files in current directory:")
+        for file in os.listdir('.'):
+            st.write(f"- {file}")
         st.stop()
     
     # Проверяем размер файла
     file_size = os.path.getsize(model_path)
     st.info(f"Model size: {file_size / (1024*1024):.2f} MB")
     
-    # Загружаем модель с кастомными объектами
+    # Загружаем модель с кастомными объектами и безопасным режимом
     try:
         import tensorflow as tf
         from tensorflow import keras
@@ -28,19 +31,18 @@ def load_resources():
                 super(NotEqual, self).__init__(**kwargs)
             
             def call(self, inputs):
-                # Возвращаем результат операции not_equal
                 return tf.not_equal(inputs, 0)
             
             def get_config(self):
-                # Возвращаем конфигурацию слоя
                 config = super(NotEqual, self).get_config()
                 return config
         
-        # Загружаем с кастомным объектом
+        # Загружаем с кастомным объектом и безопасным режимом
         model = keras.models.load_model(
             model_path, 
             custom_objects={'NotEqual': NotEqual},
-            compile=False
+            compile=False,
+            safe_mode=False  # Это позволяет загрузить модель с кастомными слоями
         )
     except Exception as e:
         st.error(f"Failed to load model with custom objects: {str(e)}")
