@@ -3,55 +3,71 @@ import numpy as np
 import pickle
 import requests
 import os
-import tempfile
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-def download_model_directly():
-    """Alternative method to download model"""
-    # Use your Google Drive file ID
-    file_id = "1A0dE-UXP9M4bPY795Z6fAdJ0wyp8M9nW"
+def download_model_from_google_drive(file_id, destination):
+    """Download model from Google Drive using direct download link"""
+    # Method 1: Direct download with cookies handling
+    session = requests.Session()
+    URL = f"https://drive.google.com/uc?export=download&id={file_id}"
     
-    # Alternative download URL format
-    url = f"https://drive.google.com/uc?export=download&confirm=1&id={file_id}"
+    response = session.get(URL, stream=True)
     
-    response = requests.get(url)
+    # Handle Google Drive's download warning
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            url = f"{URL}&confirm={value}"
+            response = session.get(url, stream=True)
+            break
     
-    # Save directly to file
-    with open('emotion_classification_model.h5', 'wb') as f:
-        f.write(response.content)
+    # Save the file
+    with open(destination, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
 
 @st.cache_resource
 def load_resources():
+    model_file_id = "1A0dE-UXP9M4bPY795Z6fAdJ0wyp8M9nW"
     model_path = 'emotion_classification_model.h5'
     
-    # Check if model exists, if not download it
+    # Download model if not exists
     if not os.path.exists(model_path):
         st.info("Downloading model...")
-        download_model_directly()
-        st.success("Model downloaded successfully!")
+        try:
+            download_model_from_google_drive(model_file_id, model_path)
+            st.success("Model downloaded successfully!")
+        except Exception as e:
+            st.error(f"Download failed: {str(e)}")
+            st.stop()
     
-    # Verify file exists and is not empty
+    # Verify the file was downloaded correctly
     if not os.path.exists(model_path) or os.path.getsize(model_path) == 0:
         st.error("Model file is missing or empty!")
         st.stop()
     
-    # Try to load the model with error handling
+    # Try to load the model with detailed error handling
     try:
         model = load_model(model_path)
     except Exception as e:
         st.error(f"Failed to load model: {str(e)}")
+        st.error("This usually happens when the model file is corrupted during download.")
         st.stop()
     
     # Load preprocessing objects
-    with open('tokenizer.pickle', 'rb') as handle:
-        tokenizer = pickle.load(handle)
-    with open('label_encoder.pickle', 'rb') as handle:
-        label_encoder = pickle.load(handle)
+    try:
+        with open('tokenizer.pickle', 'rb') as handle:
+            tokenizer = pickle.load(handle)
+        with open('label_encoder.pickle', 'rb') as handle:
+            label_encoder = pickle.load(handle)
+    except Exception as e:
+        st.error(f"Failed to load preprocessing files: {str(e)}")
+        st.stop()
         
     return model, tokenizer, label_encoder
 
-# Try to load resources with error handling
+# Load resources
 try:
     model, tokenizer, label_encoder = load_resources()
     st.success("✅ Model loaded successfully!")
