@@ -6,49 +6,41 @@ import os
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
+def download_file_from_google_drive(file_id, destination):
+    """Download file from Google Drive using the direct download method"""
+    URL = "https://drive.google.com/uc?export=download"
+    
+    session = requests.Session()
+    response = session.get(URL, params={'id': file_id}, stream=True)
+    response.raise_for_status()
+    
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
+
 @st.cache_resource
 def load_resources():
-    # New direct download URL for your model
-    model_url = "https://drive.google.com/uc?export=download&id=1A0dE-UXP9M4bPY795Z6fAdJ0wyp8M9nW"
+    # Google Drive file ID for your model
+    model_file_id = "1A0dE-UXP9M4bPY795Z6fAdJ0wyp8M9nW"
+    
     model_path = 'emotion_classification_model.h5'
     
-    # Download if not exists
+    # Download model if not exists
     if not os.path.exists(model_path):
         st.info("Downloading model...")
-        try:
-            response = requests.get(model_url, stream=True)
-            with open(model_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            st.success("Model downloaded successfully!")
-        except Exception as e:
-            st.error(f"Download failed: {str(e)}")
-            st.stop()
-    
-    # Verify file size (should be > 10MB for your model)
-    if os.path.getsize(model_path) < 1000000:  # Less than 1MB = likely corrupted
-        st.error("Model file appears corrupted or incomplete!")
-        st.stop()
+        download_file_from_google_drive(model_file_id, model_path)
+        st.success("Model downloaded successfully!")
     
     # Load model
-    try:
-        model = load_model(model_path)
-    except Exception as e:
-        st.error(f"Failed to load model: {str(e)}")
-        st.error("This usually happens when the file is corrupted.")
-        st.stop()
+    model = load_model(model_path)
     
-    # Load tokenizer and label encoder
-    try:
-        with open('tokenizer.pickle', 'rb') as handle:
-            tokenizer = pickle.load(handle)
-        with open('label_encoder.pickle', 'rb') as handle:
-            label_encoder = pickle.load(handle)
-    except FileNotFoundError as e:
-        st.error(f"Missing preprocessing file: {str(e)}")
-        st.stop()
-    
+    # Load preprocessing objects
+    with open('tokenizer.pickle', 'rb') as handle:
+        tokenizer = pickle.load(handle)
+    with open('label_encoder.pickle', 'rb') as handle:
+        label_encoder = pickle.load(handle)
+        
     return model, tokenizer, label_encoder
 
 # Load resources
@@ -59,7 +51,7 @@ except Exception as e:
     st.error(f"❌ Error loading model: {str(e)}")
     st.stop()
 
-# App interface
+# Rest of your app code...
 st.title("🧠 Emotion Classification System")
 st.subheader("AI-Powered Emotion Recognition from Text")
 
