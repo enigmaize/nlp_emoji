@@ -7,17 +7,14 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 def download_file_from_google_drive(file_id, destination):
-    """Download file from Google Drive using the direct download method"""
-    URL = "https://drive.google.com/uc?export=download"
+    """Download file from Google Drive using the correct method for large files"""
+    URL = f"https://drive.google.com/uc?id={file_id}"
     
-    session = requests.Session()
-    response = session.get(URL, params={'id': file_id}, stream=True)
+    response = requests.get(URL)
     response.raise_for_status()
     
     with open(destination, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
+        f.write(response.content)
 
 @st.cache_resource
 def load_resources():
@@ -32,8 +29,18 @@ def load_resources():
         download_file_from_google_drive(model_file_id, model_path)
         st.success("Model downloaded successfully!")
     
+    # Verify the file is not corrupted by checking its size and content
+    if os.path.getsize(model_path) < 100000:  # Less than 100KB is likely corrupted
+        st.error("Downloaded model file is too small - likely corrupted")
+        st.stop()
+    
     # Load model
-    model = load_model(model_path)
+    try:
+        model = load_model(model_path)
+    except Exception as e:
+        st.error(f"Failed to load model: {str(e)}")
+        st.error("This usually happens when the model file is corrupted during download.")
+        st.stop()
     
     # Load preprocessing objects
     with open('tokenizer.pickle', 'rb') as handle:
