@@ -25,15 +25,16 @@ def load_resources():
         import tensorflow as tf
         from tensorflow import keras
         
-        # Определяем кастомный слой правильно, учитывая ошибку
+        # Определяем кастомный слой правильно, используя Lambda слой
         class NotEqual(keras.layers.Layer):
             def __init__(self, **kwargs):
                 super(NotEqual, self).__init__(**kwargs)
             
             def call(self, inputs):
-                # Используем tf.not_equal с правильными аргументами
-                # Передаем 0 как именованный аргумент в контексте вызова
-                return tf.not_equal(inputs, tf.constant(0))
+                # Используем tf.not_equal с tf.constant(0) вместо просто 0
+                # и убедимся, что передаем аргументы правильно
+                zero_tensor = tf.constant(0, dtype=inputs.dtype)
+                return tf.not_equal(inputs, zero_tensor)
             
             def get_config(self):
                 config = super(NotEqual, self).get_config()
