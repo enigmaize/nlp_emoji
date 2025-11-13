@@ -3,28 +3,55 @@ import numpy as np
 import pickle
 import requests
 import os
+import zipfile
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
+def download_file_from_google_drive(file_id, destination):
+    """Download file from Google Drive"""
+    URL = "https://drive.google.com/uc?export=download"
+    
+    session = requests.Session()
+    response = session.get(URL, params={'id': file_id}, stream=True)
+    response.raise_for_status()
+    
+    with open(destination, "wb") as f:
+        for chunk in response.iter_content(chunk_size=32768):
+            if chunk:
+                f.write(chunk)
+
 @st.cache_resource
 def load_resources():
-    # Check if model exists, if not download from Google Drive
+    # Google Drive file ID for your model
     model_file_id = "1B-aVgkLReK0hBz4XMFL118IDsB2_BXgy"
     
-    if not os.path.exists('emotion_classification_model.h5'):
+    model_path = 'emotion_classification_model.h5'
+    tokenizer_path = 'tokenizer.pickle'
+    label_encoder_path = 'label_encoder.pickle'
+    
+    # Download model if not exists
+    if not os.path.exists(model_path):
         st.info("Downloading model...")
-        url = f"https://drive.google.com/uc?export=download&id={model_file_id}"
-        
-        response = requests.get(url)
-        with open('emotion_classification_model.h5', 'wb') as f:
-            f.write(response.content)
+        download_file_from_google_drive(model_file_id, model_path)
         st.success("Model downloaded successfully!")
     
-    model = load_model('emotion_classification_model.h5')
-    with open('tokenizer.pickle', 'rb') as handle:
+    # Check if tokenizer and label encoder exist (they should be in your repo)
+    if not os.path.exists(tokenizer_path):
+        st.error(f"tokenizer.pickle not found! Please upload it to your repository.")
+        st.stop()
+    if not os.path.exists(label_encoder_path):
+        st.error(f"label_encoder.pickle not found! Please upload it to your repository.")
+        st.stop()
+    
+    # Load the model
+    model = load_model(model_path)
+    
+    # Load preprocessing objects
+    with open(tokenizer_path, 'rb') as handle:
         tokenizer = pickle.load(handle)
-    with open('label_encoder.pickle', 'rb') as handle:
+    with open(label_encoder_path, 'rb') as handle:
         label_encoder = pickle.load(handle)
+        
     return model, tokenizer, label_encoder
 
 # Try to load resources
