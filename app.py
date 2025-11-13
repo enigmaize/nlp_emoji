@@ -3,64 +3,50 @@ import numpy as np
 import pickle
 import requests
 import os
-import zipfile
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 def download_file_from_google_drive(file_id, destination):
-    """Download file from Google Drive"""
-    URL = "https://drive.google.com/uc?export=download"
+    """Download file from Google Drive using the direct download method"""
+    def get_confirm_token(response):
+        for key, value in response.cookies.items():
+            if key.startswith('download_warning'):
+                return value
+        return None
+
+    URL = "https://docs.google.com/uc?export=download"
     
-    session = requests.Session()
-    response = session.get(URL, params={'id': file_id}, stream=True)
-    response.raise_for_status()
-    
-    with open(destination, "wb") as f:
-        for chunk in response.iter_content(chunk_size=32768):
-            if chunk:
-                f.write(chunk)
+    with requests.Session() as session:
+        response = session.get(URL, params={'id': file_id}, stream=True)
+        token = get_confirm_token(response)
+        
+        if token:
+            params = {'id': file_id, 'confirm': token}
+            response = session.get(URL, params=params, stream=True)
+        
+        with open(destination, "wb") as f:
+            for chunk in response.iter_content(32768):
+                if chunk:
+                    f.write(chunk)
 
 @st.cache_resource
 def load_resources():
-    # Google Drive file ID for your model
-    model_file_id = "1B-aVgkLReK0hBz4XMFL118IDsB2_BXgy"
+    model_file_id = "1B-aVgkLReK0hBz4XMFL118IDsB2_BXgy"  # Your file ID
     
-    model_path = 'emotion_classification_model.h5'
-    tokenizer_path = 'tokenizer.pickle'
-    label_encoder_path = 'label_encoder.pickle'
-    
-    # Download model if not exists
-    if not os.path.exists(model_path):
+    if not os.path.exists('emotion_classification_model.h5'):
         st.info("Downloading model...")
-        download_file_from_google_drive(model_file_id, model_path)
+        download_file_from_google_drive(model_file_id, 'emotion_classification_model.h5')
         st.success("Model downloaded successfully!")
     
-    # Check if tokenizer and label encoder exist (they should be in your repo)
-    if not os.path.exists(tokenizer_path):
-        st.error(f"tokenizer.pickle not found! Please upload it to your repository.")
-        st.stop()
-    if not os.path.exists(label_encoder_path):
-        st.error(f"label_encoder.pickle not found! Please upload it to your repository.")
-        st.stop()
-    
-    # Load the model
-    model = load_model(model_path)
-    
-    # Load preprocessing objects
-    with open(tokenizer_path, 'rb') as handle:
+    model = load_model('emotion_classification_model.h5')
+    with open('tokenizer.pickle', 'rb') as handle:
         tokenizer = pickle.load(handle)
-    with open(label_encoder_path, 'rb') as handle:
+    with open('label_encoder.pickle', 'rb') as handle:
         label_encoder = pickle.load(handle)
-        
     return model, tokenizer, label_encoder
 
-# Try to load resources
-try:
-    model, tokenizer, label_encoder = load_resources()
-    st.success("✅ Model loaded successfully!")
-except Exception as e:
-    st.error(f"❌ Error loading model: {str(e)}")
-    st.stop()
+# Load resources
+model, tokenizer, label_encoder = load_resources()
 
 # Rest of your app code...
 st.title("🧠 Emotion Classification System")
@@ -121,13 +107,4 @@ st.sidebar.write("""
 - **Classes**: 75 different emotions
 - **Accuracy**: 100%
 - **Architecture**: Custom neural network
-""")
-
-st.sidebar.header("How it Works")
-st.sidebar.write("""
-1. Text is processed through tokenization
-2. Converted to numerical sequences
-3. Passed through LSTM network
-4. Attention mechanism identifies key emotional phrases
-5. Output shows the predicted emotion
 """)
