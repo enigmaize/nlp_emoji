@@ -22,9 +22,19 @@ def load_resources():
         import tensorflow as tf
         from tensorflow import keras
         
-        # Регистрируем кастомный слой 'NotEqual' как Lambda слой для совместимости
-        def NotEqual(inputs):
-            return tf.not_equal(inputs, 0)
+        # Определяем кастомный слой правильно
+        class NotEqual(keras.layers.Layer):
+            def __init__(self, **kwargs):
+                super(NotEqual, self).__init__(**kwargs)
+            
+            def call(self, inputs):
+                # Возвращаем результат операции not_equal
+                return tf.not_equal(inputs, 0)
+            
+            def get_config(self):
+                # Возвращаем конфигурацию слоя
+                config = super(NotEqual, self).get_config()
+                return config
         
         # Загружаем с кастомным объектом
         model = keras.models.load_model(
