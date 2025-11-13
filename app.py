@@ -6,43 +6,55 @@ import os
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-def download_file_from_google_drive(file_id, destination):
-    """Download file from Google Drive using the correct method for large files"""
-    URL = f"https://drive.google.com/uc?id={file_id}"
+def download_model_from_google_drive(file_id, destination):
+    """Download model from Google Drive - handles large files correctly"""
+    # URL для больших файлов из Google Drive
+    url = f"https://drive.google.com/uc?id={file_id}"
     
-    response = requests.get(URL)
-    response.raise_for_status()
+    session = requests.Session()
+    response = session.get(url, stream=True)
     
-    with open(destination, "wb") as f:
-        f.write(response.content)
+    # Проверяем, не получили ли мы HTML-страницу вместо файла
+    if 'text/html' in response.headers.get('content-type', ''):
+        # Это означает, что файл большой и требует подтверждения
+        # Попробуем получить файл через прямую ссылку
+        confirm_url = f"https://drive.google.com/uc?export=download&confirm=1&id={file_id}"
+        response = session.get(confirm_url, stream=True)
+    
+    # Сохраняем файл
+    with open(destination, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
 
 @st.cache_resource
 def load_resources():
-    # Google Drive file ID for your model
     model_file_id = "1A0dE-UXP9M4bPY795Z6fAdJ0wyp8M9nW"
-    
     model_path = 'emotion_classification_model.h5'
     
-    # Download model if not exists
+    # Скачиваем модель если не существует
     if not os.path.exists(model_path):
         st.info("Downloading model...")
-        download_file_from_google_drive(model_file_id, model_path)
+        download_model_from_google_drive(model_file_id, model_path)
         st.success("Model downloaded successfully!")
     
-    # Verify the file is not corrupted by checking its size and content
-    if os.path.getsize(model_path) < 100000:  # Less than 100KB is likely corrupted
-        st.error("Downloaded model file is too small - likely corrupted")
+    # Проверяем размер файла (должен быть больше 10MB для вашей модели)
+    file_size = os.path.getsize(model_path)
+    st.info(f"Downloaded model size: {file_size / (1024*1024):.2f} MB")
+    
+    if file_size < 10 * 1024 * 1024:  # Меньше 10MB
+        st.error(f"Downloaded file is too small ({file_size} bytes) - likely not the actual model file")
         st.stop()
     
-    # Load model
+    # Загружаем модель
     try:
         model = load_model(model_path)
     except Exception as e:
         st.error(f"Failed to load model: {str(e)}")
-        st.error("This usually happens when the model file is corrupted during download.")
+        st.error("The downloaded file might be corrupted or not a valid model file.")
         st.stop()
     
-    # Load preprocessing objects
+    # Загружаем предобработку
     with open('tokenizer.pickle', 'rb') as handle:
         tokenizer = pickle.load(handle)
     with open('label_encoder.pickle', 'rb') as handle:
@@ -50,7 +62,7 @@ def load_resources():
         
     return model, tokenizer, label_encoder
 
-# Load resources
+# Загружаем ресурсы
 try:
     model, tokenizer, label_encoder = load_resources()
     st.success("✅ Model loaded successfully!")
@@ -58,7 +70,7 @@ except Exception as e:
     st.error(f"❌ Error loading model: {str(e)}")
     st.stop()
 
-# Rest of your app code...
+# Остальной код приложения...
 st.title("🧠 Emotion Classification System")
 st.subheader("AI-Powered Emotion Recognition from Text")
 
