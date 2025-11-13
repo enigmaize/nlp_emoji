@@ -33,10 +33,10 @@ def load_resources():
             
             def call(self, inputs):
                 # Используем tf.not_equal с tf.constant(0) и убедимся, что все аргументы правильно передаются
-                zero_tensor = tf.constant(0, dtype=inputs.dtype)
-                # Создаем результат операции not_equal
-                result = tf.raw_ops.NotEqual(x=inputs, y=zero_tensor)
-                return result
+                # Создаем тензор нуля с тем же dtype, что и вход
+                zero = tf.constant(0, dtype=inputs.dtype)
+                # Вызываем tf.not_equal с именованными аргументами
+                return tf.math.not_equal(inputs, zero)
             
             def get_config(self):
                 config = super(NotEqual, self).get_config()
