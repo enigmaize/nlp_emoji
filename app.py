@@ -1,23 +1,53 @@
-
 import streamlit as st
 import numpy as np
 import pickle
+import os
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-# Load the trained model and preprocessing objects
 @st.cache_resource
 def load_resources():
-    model = load_model('emotion_classification_model.h5')
+    model_path = 'emotion_classification_model.h5'
+    
+    # Проверяем, существует ли файл
+    if not os.path.exists(model_path):
+        st.error(f"Model file {model_path} not found in repository!")
+        st.stop()
+    
+    # Проверяем размер файла
+    file_size = os.path.getsize(model_path)
+    st.info(f"Model size: {file_size / (1024*1024):.2f} MB")
+    
+    # Загружаем модель с обработкой совместимости
+    try:
+        model = load_model(model_path, compile=False)  # Отключаем компиляцию для совместимости
+    except Exception as e:
+        st.error(f"Failed to load model: {str(e)}")
+        # Попробуем альтернативный способ
+        try:
+            import tensorflow as tf
+            model = tf.keras.models.load_model(model_path, compile=False)
+        except Exception as e2:
+            st.error(f"Alternative loading also failed: {str(e2)}")
+            st.stop()
+    
+    # Загружаем предобработку
     with open('tokenizer.pickle', 'rb') as handle:
         tokenizer = pickle.load(handle)
     with open('label_encoder.pickle', 'rb') as handle:
         label_encoder = pickle.load(handle)
+        
     return model, tokenizer, label_encoder
 
-model, tokenizer, label_encoder = load_resources()
+# Загружаем ресурсы
+try:
+    model, tokenizer, label_encoder = load_resources()
+    st.success("✅ Model loaded successfully from repository!")
+except Exception as e:
+    st.error(f"❌ Error loading model: {str(e)}")
+    st.stop()
 
-# Streamlit app
+# Остальной код приложения...
 st.title("🧠 Emotion Classification System")
 st.subheader("AI-Powered Emotion Recognition from Text")
 
@@ -26,7 +56,6 @@ This model can classify text into **75 different emotions** with **100% accuracy
 Enter any text below to see which emotion it represents!
 """)
 
-# Text input
 user_input = st.text_area(
     "Enter text for emotion classification:", 
     height=150,
@@ -36,21 +65,16 @@ user_input = st.text_area(
 if st.button("Classify Emotion"):
     if user_input.strip():
         with st.spinner('Analyzing emotion...'):
-            # Preprocess the input text
             sequence = tokenizer.texts_to_sequences([user_input])
             padded = pad_sequences(sequence, maxlen=512, padding='post', truncating='post')
-            
-            # Make prediction
-            prediction = model.predict(padded)
+            prediction = model.predict(padded, verbose=0)
             predicted_class_idx = np.argmax(prediction, axis=1)[0]
             predicted_emotion = label_encoder.classes_[predicted_class_idx]
             confidence = prediction[0][predicted_class_idx]
             
-            # Display results
             st.success(f"**Predicted Emotion:** {predicted_emotion}")
             st.info(f"**Confidence:** {confidence:.4f}")
             
-            # Show top 3 predictions
             top_3_indices = np.argsort(prediction[0])[-3:][::-1]
             top_3_emotions = [label_encoder.classes_[idx] for idx in top_3_indices]
             top_3_confidences = [prediction[0][idx] for idx in top_3_indices]
@@ -59,13 +83,11 @@ if st.button("Classify Emotion"):
             for i, (emotion, conf) in enumerate(zip(top_3_emotions, top_3_confidences)):
                 st.write(f"{i+1}. {emotion}: {conf:.4f}")
             
-            # Show input text
             st.subheader("Input Text:")
             st.write(user_input)
     else:
         st.warning("Please enter some text to classify!")
 
-# Add some sample texts for testing
 st.subheader("Try these sample texts:")
 samples = [
     "I feel so angry about the unfair treatment I received today",
@@ -84,13 +106,4 @@ st.sidebar.write("""
 - **Classes**: 75 different emotions
 - **Accuracy**: 100%
 - **Architecture**: Custom neural network
-""")
-
-st.sidebar.header("How it Works")
-st.sidebar.write("""
-1. Text is processed through tokenization
-2. Converted to numerical sequences
-3. Passed through LSTM network
-4. Attention mechanism identifies key emotional phrases
-5. Output shows the predicted emotion
 """)
