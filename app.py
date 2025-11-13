@@ -19,18 +19,19 @@ def load_resources():
     
     # Загружаем модель с кастомными объектами
     try:
-        from tensorflow import keras
         import tensorflow as tf
+        from tensorflow import keras
         
-        # Регистрируем кастомный слой 'NotEqual' если он есть
-        class NotEqual(keras.layers.Layer):
-            def call(self, inputs):
-                # Простая реализация для inference
-                return tf.not_equal(inputs, 0)
+        # Регистрируем кастомный слой 'NotEqual' как Lambda слой для совместимости
+        def NotEqual(inputs):
+            return tf.not_equal(inputs, 0)
         
         # Загружаем с кастомным объектом
-        with keras.utils.custom_object_scope({'NotEqual': NotEqual}):
-            model = keras.models.load_model(model_path, compile=False)
+        model = keras.models.load_model(
+            model_path, 
+            custom_objects={'NotEqual': NotEqual},
+            compile=False
+        )
     except Exception as e:
         st.error(f"Failed to load model with custom objects: {str(e)}")
         st.stop()
