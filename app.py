@@ -11,21 +11,36 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.layers import Layer # Import Layer base class
 import tensorflow.keras.utils as utils # Import utils for registration if needed
 
-# --- Define Custom NotEqual Layer Class ---
+# --- Define Custom NotEqual Layer Class (Updated for Positional Arg) ---
 class NotEqual(Layer):
-    def __init__(self, comparison_value=0, **kwargs):
+    def __init__(self, comparison_value, **kwargs): # Accept comparison_value as first positional arg
         """
         Initializes the NotEqual layer.
 
         Args:
-            comparison_value: The value to compare the input against. Default is 0.
-                              This is often the case for masking operations.
+            comparison_value: The value (or tensor) to compare the input against.
+                              This is passed as a positional argument when the layer was saved.
             **kwargs: Standard Keras layer keyword arguments.
         """
-        super(NotEqual, self).__init__(**kwargs)
-        self.comparison_value = comparison_value
-        # Keras needs to know the config for serialization/deserialization
-        self._comparison_value_for_config = comparison_value
+        # Check if comparison_value is a dictionary (indicating it's a config being passed)
+        # This handles potential cases where from_config might pass the config dict directly
+        if isinstance(comparison_value, dict):
+            # If so, treat it as the config and call super's __init__ first
+            # Then update with the config manually, which is less common but possible
+            # A more robust way is to ensure get_config/from_config handles it correctly.
+            # However, the primary goal is to accept the saved positional arg.
+            # Let's assume it's the value unless explicitly a config during standard load.
+            # The key is that during loading, the first arg passed *is* the value.
+            super(NotEqual, self).__init__(**comparison_value) # This handles kwargs like name, trainable
+            self.comparison_value = None # Placeholder, config should set it
+            # Rebuild comparison_value from the config that was passed as first arg
+            self.comparison_value = comparison_value.get('comparison_value', 0) # Default if not found
+            self._comparison_value_for_config = self.comparison_value
+        else:
+            # Standard case: first arg is the comparison value
+            super(NotEqual, self).__init__(**kwargs)
+            self.comparison_value = comparison_value
+            self._comparison_value_for_config = comparison_value # Store for config
 
     def call(self, inputs):
         """
@@ -39,6 +54,7 @@ class NotEqual(Layer):
             input element is not equal to `comparison_value`, False otherwise.
         """
         # Perform the 'not equal' operation
+        # comparison_value might be a scalar or a tensor compatible with inputs
         return tf.not_equal(inputs, self.comparison_value)
 
     def get_config(self):
@@ -53,8 +69,14 @@ class NotEqual(Layer):
     def from_config(cls, config):
         """
         Creates a layer instance from its config.
+        This method is called during loading if get_config was used during saving.
         """
-        return cls(**config)
+        # The config will contain 'comparison_value' and other Layer config items
+        # We pass the comparison_value as the first positional arg to __init__
+        comparison_value = config.pop('comparison_value', 0) # Get and remove from config
+        # The remaining items in config are Layer kwargs (like name, trainable, etc.)
+        return cls(comparison_value, **config) # Pass value first, then kwargs
+
 
 # --- Model Loading with Custom Object Scope and safe_mode=False ---
 @st.cache_resource
@@ -72,7 +94,7 @@ def load_resources():
 
     # Define custom objects dictionary, mapping the layer name to the class
     custom_objects = {
-        'NotEqual': NotEqual # Map 'NotEqual' to the class definition
+        'NotEqual': NotEqual # Map 'NotEqual' to the updated class definition
         # If you encounter other custom objects later, add them here
         # e.g., 'MyCustomLayer': MyCustomLayer,
         # 'my_custom_function': my_custom_function
@@ -84,9 +106,9 @@ def load_resources():
         with utils.custom_object_scope(custom_objects):
             # Add safe_mode=False to handle the Lambda layer
             model = tf.keras.models.load_model(model_path, compile=False, safe_mode=False)
-        st.success("✅ Model loaded successfully with custom NotEqual layer and safe_mode=False!")
+        st.success("✅ Model loaded successfully with updated custom NotEqual layer and safe_mode=False!")
     except Exception as e:
-        st.error(f"Failed to load model even with custom object scope and safe_mode=False: {str(e)}")
+        st.error(f"Failed to load model even with updated custom object scope and safe_mode=False: {str(e)}")
         st.stop()
 
     # Load preprocessing
