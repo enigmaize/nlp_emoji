@@ -5,25 +5,25 @@ import os
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
-# Remove the direct import of load_model, use tf.keras.models.load_model instead
-# from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.layers import Layer # Import Layer base class
-import tensorflow.keras.utils as utils # Import utils for registration if needed
+from tensorflow.keras.layers import Layer
+import tensorflow.keras.utils as utils
 
-# --- Define Custom NotEqual Layer Class (Updated for Positional Arg) ---
+# --- Define Custom NotEqual Layer Class (Corrected for Positional Arg Loading) ---
 class NotEqual(Layer):
-    def __init__(self, comparison_value=0, **kwargs):
+    def __init__(self, comparison_value, **kwargs):
         """
         Initializes the NotEqual layer.
 
         Args:
             comparison_value: The value (or tensor) to compare the input against.
-                              Default is 0.
-            **kwargs: Standard Keras layer keyword arguments.
+                              This was passed as a positional argument when the layer was saved.
+            **kwargs: Standard Keras layer keyword arguments (e.g., name, trainable).
         """
         super(NotEqual, self).__init__(**kwargs)
         self.comparison_value = comparison_value
+        # Store for serialization (get_config)
+        self._comparison_value_for_config = comparison_value
 
     def call(self, inputs):
         """
@@ -41,17 +41,27 @@ class NotEqual(Layer):
     def get_config(self):
         """
         Provides the config for serialization.
+        This config will be used by from_config during loading.
         """
         config = super(NotEqual, self).get_config()
-        config.update({"comparison_value": self.comparison_value})
+        # Add the comparison_value to the config dictionary.
+        # Note: When from_config calls the constructor, it will pass this value as a positional arg.
+        config.update({"comparison_value": self._comparison_value_for_config})
         return config
 
     @classmethod
     def from_config(cls, config):
         """
         Creates a layer instance from its config.
+        This is called during model loading.
+        It extracts 'comparison_value' and passes it as a positional argument to __init__.
         """
-        return cls(**config)
+        # Pop the 'comparison_value' from the config dictionary.
+        # This value was stored by get_config.
+        comparison_value = config.pop('comparison_value')
+        # Now call the constructor with the popped value as the first positional argument,
+        # and the remaining items in the config dictionary as keyword arguments.
+        return cls(comparison_value, **config)
 
 
 # --- Model Loading with Custom Object Scope and safe_mode=False ---
@@ -70,21 +80,18 @@ def load_resources():
 
     # Define custom objects dictionary, mapping the layer name to the class
     custom_objects = {
-        'NotEqual': NotEqual # Map 'NotEqual' to the updated class definition
-        # If you encounter other custom objects later, add them here
-        # e.g., 'MyCustomLayer': MyCustomLayer,
-        # 'my_custom_function': my_custom_function
+        'NotEqual': NotEqual # Map 'NotEqual' to the corrected class definition
+        # Add other custom objects if needed
     }
 
     # Load model WITH custom objects scope AND safe_mode=False to handle Lambda layers
     try:
-        # Use tf.keras.models.load_model, not keras.models.load_model
         with utils.custom_object_scope(custom_objects):
             # Add safe_mode=False to handle the Lambda layer
             model = tf.keras.models.load_model(model_path, compile=False, safe_mode=False)
-        st.success("✅ Model loaded successfully with updated custom NotEqual layer and safe_mode=False!")
+        st.success("✅ Model loaded successfully with corrected custom NotEqual layer and safe_mode=False!")
     except Exception as e:
-        st.error(f"Failed to load model even with updated custom object scope and safe_mode=False: {str(e)}")
+        st.error(f"Failed to load model: {str(e)}")
         st.stop()
 
     # Load preprocessing
@@ -98,7 +105,6 @@ def load_resources():
 # Load resources
 try:
     model, tokenizer, label_encoder = load_resources()
-    # The success message for model loading is now inside the load_resources function
 except Exception as e:
     st.error(f"❌ Critical error loading resources: {str(e)}")
     st.stop()
