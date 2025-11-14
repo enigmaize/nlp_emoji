@@ -20,7 +20,7 @@ def not_equal_layer_fn(x):
     return tf.not_equal(x, 0)
 
 # --- Model Loading with Custom Function and safe_mode=False ---
-@st_cache_resource # Use the correct decorator name
+@st.cache_resource # <-- Corrected: Use @st.cache_resource, not @st_cache_resource
 def load_resources():
     model_path = 'emotion_model_compatible.h5'
 
