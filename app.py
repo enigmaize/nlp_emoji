@@ -5,7 +5,8 @@ import os
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
-from tensorflow.keras.models import load_model
+# Remove the direct import of load_model, use tf.keras.models.load_model instead
+# from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 @st.cache_resource
@@ -21,11 +22,30 @@ def load_resources():
     file_size = os.path.getsize(model_path)
     st.info(f"Model size: {file_size / (1024*1024):.2f} MB")
     
-    # Load model (without custom objects!)
+    # Define custom objects dictionary
+    # The 'NotEqual' layer often corresponds to tf.raw_ops.NotEqual or tf.not_equal
+    # Try tf.raw_ops.NotEqual first based on common occurrences
+    custom_objects = {
+        'NotEqual': tf.raw_ops.NotEqual
+    }
+    # If the above doesn't work, you might need to try:
+    # custom_objects = {'NotEqual': tf.not_equal}
+
+    # Load model WITH custom objects scope
     try:
-        model = load_model(model_path, compile=False)
+        with tf.keras.utils.custom_object_scope(custom_objects):
+            model = tf.keras.models.load_model(model_path, compile=False)
+        st.success("✅ Model loaded successfully with custom object scope!")
     except Exception as e:
-        st.error(f"Failed to load model: {str(e)}")
+        st.error(f"Failed to load model even with custom object scope (using tf.raw_ops.NotEqual): {str(e)}")
+        # Optionally, try the alternative mapping if the first fails within this function
+        # custom_objects_alt = {'NotEqual': tf.not_equal}
+        # try:
+        #     with tf.keras.utils.custom_object_scope(custom_objects_alt):
+        #         model = tf.keras.models.load_model(model_path, compile=False)
+        #     st.success("✅ Model loaded successfully with alternative custom object scope (using tf.not_equal)!")
+        # except Exception as e2:
+        #     st.error(f"Failed to load model with alternative mapping (tf.not_equal) too: {str(e2)}")
         st.stop()
     
     # Load preprocessing
@@ -39,9 +59,9 @@ def load_resources():
 # Load resources
 try:
     model, tokenizer, label_encoder = load_resources()
-    st.success("✅ Model loaded successfully from repository!")
+    # The success message for model loading is now inside the load_resources function
 except Exception as e:
-    st.error(f"❌ Error loading model: {str(e)}")
+    st.error(f"❌ Critical error loading resources: {str(e)}")
     st.stop()
 
 # App interface...
