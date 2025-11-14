@@ -13,34 +13,17 @@ import tensorflow.keras.utils as utils # Import utils for registration if needed
 
 # --- Define Custom NotEqual Layer Class (Updated for Positional Arg) ---
 class NotEqual(Layer):
-    def __init__(self, comparison_value, **kwargs): # Accept comparison_value as first positional arg
+    def __init__(self, comparison_value=0, **kwargs):
         """
         Initializes the NotEqual layer.
 
         Args:
             comparison_value: The value (or tensor) to compare the input against.
-                              This is passed as a positional argument when the layer was saved.
+                              Default is 0.
             **kwargs: Standard Keras layer keyword arguments.
         """
-        # Check if comparison_value is a dictionary (indicating it's a config being passed)
-        # This handles potential cases where from_config might pass the config dict directly
-        if isinstance(comparison_value, dict):
-            # If so, treat it as the config and call super's __init__ first
-            # Then update with the config manually, which is less common but possible
-            # A more robust way is to ensure get_config/from_config handles it correctly.
-            # However, the primary goal is to accept the saved positional arg.
-            # Let's assume it's the value unless explicitly a config during standard load.
-            # The key is that during loading, the first arg passed *is* the value.
-            super(NotEqual, self).__init__(**comparison_value) # This handles kwargs like name, trainable
-            self.comparison_value = None # Placeholder, config should set it
-            # Rebuild comparison_value from the config that was passed as first arg
-            self.comparison_value = comparison_value.get('comparison_value', 0) # Default if not found
-            self._comparison_value_for_config = self.comparison_value
-        else:
-            # Standard case: first arg is the comparison value
-            super(NotEqual, self).__init__(**kwargs)
-            self.comparison_value = comparison_value
-            self._comparison_value_for_config = comparison_value # Store for config
+        super(NotEqual, self).__init__(**kwargs)
+        self.comparison_value = comparison_value
 
     def call(self, inputs):
         """
@@ -53,8 +36,6 @@ class NotEqual(Layer):
             A boolean tensor where each element is True if the corresponding
             input element is not equal to `comparison_value`, False otherwise.
         """
-        # Perform the 'not equal' operation
-        # comparison_value might be a scalar or a tensor compatible with inputs
         return tf.not_equal(inputs, self.comparison_value)
 
     def get_config(self):
@@ -62,20 +43,15 @@ class NotEqual(Layer):
         Provides the config for serialization.
         """
         config = super(NotEqual, self).get_config()
-        config.update({"comparison_value": self._comparison_value_for_config})
+        config.update({"comparison_value": self.comparison_value})
         return config
 
     @classmethod
     def from_config(cls, config):
         """
         Creates a layer instance from its config.
-        This method is called during loading if get_config was used during saving.
         """
-        # The config will contain 'comparison_value' and other Layer config items
-        # We pass the comparison_value as the first positional arg to __init__
-        comparison_value = config.pop('comparison_value', 0) # Get and remove from config
-        # The remaining items in config are Layer kwargs (like name, trainable, etc.)
-        return cls(comparison_value, **config) # Pass value first, then kwargs
+        return cls(**config)
 
 
 # --- Model Loading with Custom Object Scope and safe_mode=False ---
