@@ -56,7 +56,7 @@ class NotEqual(Layer):
         """
         return cls(**config)
 
-# --- Model Loading with Custom Object Scope ---
+# --- Model Loading with Custom Object Scope and safe_mode=False ---
 @st.cache_resource
 def load_resources():
     model_path = 'emotion_model_compatible.h5'
@@ -73,16 +73,20 @@ def load_resources():
     # Define custom objects dictionary, mapping the layer name to the class
     custom_objects = {
         'NotEqual': NotEqual # Map 'NotEqual' to the class definition
+        # If you encounter other custom objects later, add them here
+        # e.g., 'MyCustomLayer': MyCustomLayer,
+        # 'my_custom_function': my_custom_function
     }
 
-    # Load model WITH custom objects scope
+    # Load model WITH custom objects scope AND safe_mode=False to handle Lambda layers
     try:
         # Use tf.keras.models.load_model, not keras.models.load_model
         with utils.custom_object_scope(custom_objects):
-            model = tf.keras.models.load_model(model_path, compile=False)
-        st.success("✅ Model loaded successfully with custom NotEqual layer!")
+            # Add safe_mode=False to handle the Lambda layer
+            model = tf.keras.models.load_model(model_path, compile=False, safe_mode=False)
+        st.success("✅ Model loaded successfully with custom NotEqual layer and safe_mode=False!")
     except Exception as e:
-        st.error(f"Failed to load model even with custom NotEqual layer class: {str(e)}")
+        st.error(f"Failed to load model even with custom object scope and safe_mode=False: {str(e)}")
         st.stop()
 
     # Load preprocessing
