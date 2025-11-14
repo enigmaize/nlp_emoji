@@ -2,54 +2,40 @@ import streamlit as st
 import numpy as np
 import pickle
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
+from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 @st.cache_resource
 def load_resources():
-    model_path = 'emotion_classification_model.h5'
+    model_path = 'emotion_model_compatible.h5'
     
-    # Проверяем, существует ли файл
+    # Check if file exists
     if not os.path.exists(model_path):
         st.error(f"❌ Model file {model_path} not found in repository!")
-        st.error("Files in current directory:")
-        for file in os.listdir('.'):
-            st.write(f"- {file}")
         st.stop()
     
-    # Проверяем размер файла
+    # Check file size
     file_size = os.path.getsize(model_path)
     st.info(f"Model size: {file_size / (1024*1024):.2f} MB")
     
-    # Загружаем модель с кастомными объектами и безопасным режимом
+    # Load model (without custom objects!)
     try:
-        import tensorflow as tf
-        from tensorflow import keras
-        
-        # Определяем кастомный слой как функцию (не класс), как рекомендовано в документации
-        def NotEqual(inputs):
-            # Просто возвращаем результат операции not_equal - это будет работать в старых версиях TF
-            return tf.not_equal(inputs, 0)
-        
-        # Загружаем с кастомным объектом и безопасным режимом
-        model = keras.models.load_model(
-            model_path, 
-            custom_objects={'NotEqual': NotEqual},
-            compile=False,
-            safe_mode=False  # safe_mode=False разрешает использование кастомных объектов
-        )
+        model = load_model(model_path, compile=False)
     except Exception as e:
-        st.error(f"Failed to load model with custom objects: {str(e)}")
+        st.error(f"Failed to load model: {str(e)}")
         st.stop()
     
-    # Загружаем предобработку
-    with open('tokenizer.pickle', 'rb') as handle:
+    # Load preprocessing
+    with open('tokenizer_compatible.pickle', 'rb') as handle:
         tokenizer = pickle.load(handle)
-    with open('label_encoder.pickle', 'rb') as handle:
+    with open('label_encoder_compatible.pickle', 'rb') as handle:
         label_encoder = pickle.load(handle)
         
     return model, tokenizer, label_encoder
 
-# Загружаем ресурсы
+# Load resources
 try:
     model, tokenizer, label_encoder = load_resources()
     st.success("✅ Model loaded successfully from repository!")
@@ -57,12 +43,12 @@ except Exception as e:
     st.error(f"❌ Error loading model: {str(e)}")
     st.stop()
 
-# Остальной код приложения...
+# App interface...
 st.title("🧠 Emotion Classification System")
 st.subheader("AI-Powered Emotion Recognition from Text")
 
 st.write("""
-This model can classify text into **75 different emotions** with **100% accuracy**.
+This model can classify text into **75 different emotions** with high accuracy.
 Enter any text below to see which emotion it represents!
 """)
 
@@ -93,6 +79,13 @@ if st.button("Classify Emotion"):
             for i, (emotion, conf) in enumerate(zip(top_3_emotions, top_3_confidences)):
                 st.write(f"{i+1}. {emotion}: {conf:.4f}")
             
+            # Visualize probabilities
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.barh(top_3_emotions, top_3_confidences)
+            ax.set_xlabel('Confidence Score')
+            ax.set_title('Top 3 Emotion Probabilities')
+            st.pyplot(fig)
+            
             st.subheader("Input Text:")
             st.write(user_input)
     else:
@@ -110,10 +103,20 @@ for i, sample in enumerate(samples):
     if st.button(f"Sample {i+1}", key=f"sample_{i}"):
         st.session_state.user_input = sample
 
+# Additional model information
 st.sidebar.header("About this Model")
 st.sidebar.write("""
 - **Model Type**: Bidirectional LSTM with Attention
 - **Classes**: 75 different emotions
-- **Accuracy**: 100%
 - **Architecture**: Custom neural network
+- **Dataset**: 280,000 AI-generated question-answer pairs
+""")
+
+st.sidebar.header("How it Works")
+st.sidebar.write("""
+1. Text is processed through tokenization
+2. Converted to numerical sequences
+3. Passed through LSTM network
+4. Attention mechanism identifies key emotional phrases
+5. Output shows the predicted emotion
 """)
